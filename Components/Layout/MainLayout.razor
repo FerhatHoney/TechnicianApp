@@ -1,0 +1,72 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavManager
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<MudLayout>
+    <MudAppBar Color="Color.Primary" Fixed="true" Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-3">Teknisyen Paneli</MudText>
+        <MudSpacer />
+        <!-- Title yerine küçük harfle title yazılmalı -->
+       <!-- Mevcut satırı bulup OnClick="HandleLogout" ekliyoruz -->
+        <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" title="Çıkış Yap" OnClick="HandleLogout" />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="@_drawerOpen" Elevation="1" Variant="@DrawerVariant.Temporary">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6" Color="Color.Primary" Style="font-weight: bold;">Menü</MudText>
+        </MudDrawerHeader>
+
+        <MudNavMenu>
+            <MudNavLink Href="/home" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Ana Sayfa</MudNavLink>
+            <MudNavLink Href="/tasks" Icon="@Icons.Material.Filled.Assignment">Görev Yönetimi</MudNavLink>
+            <MudNavLink Href="/notes" Icon="@Icons.Material.Filled.Note">Notlar & Hatırlatıcılar</MudNavLink>
+            <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory">Envanter & Cihazlar</MudNavLink>
+            <!-- SADECE ADMİNLER GÖREBİLİR -->
+            @if (_isAdmin)
+            {
+                <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.AdminPanelSettings" Style="color: #d32f2f; font-weight:bold;">Admin Paneli</MudNavLink>
+            }
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-4 pb-16">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    [Inject] private IAuthService AuthService { get; set; } = default!;
+
+    private bool _drawerOpen = false;
+    private bool _isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null && user.Role == "Admin")
+        {
+            _isAdmin = true;
+        }
+    }
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task HandleLogout()
+    {
+        // AuthService içindeki LogoutAsync metodunu çağır (Firebase oturumunu kapatır)
+        await AuthService.LogoutAsync();
+        
+        // Kullanıcıyı zorunlu olarak sayfayı yenileterek (true) Login ekranına yönlendir
+        NavManager.NavigateTo("/", forceLoad: true);
+    }
+}

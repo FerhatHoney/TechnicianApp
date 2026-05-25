@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "842078616035",
+    "project_id": "teta-78d2d",
+    "storage_bucket": "teta-78d2d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:842078616035:android:2e3d91f153449b4e3dc8d6",
+        "android_client_info": {
+          "package_name": "com.hnysoftware.teta"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "842078616035-slr2lclbt7jjn9ldk2l4ckk4b263t3qa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hnysoftware.teta",
+            "certificate_hash": "4aabc2e7565887ec8d49ee67ace0316fa8632260"
+          }
+        },
+        {
+          "client_id": "842078616035-0kgdvdm33ac0uorrdupl4moidq5ho1ho.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDnoBA8lmKew6aGCLRdxhVvV5Y-MjMsYXM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "842078616035-0kgdvdm33ac0uorrdupl4moidq5ho1ho.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

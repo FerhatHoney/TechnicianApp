@@ -1,0 +1,273 @@
+﻿@page "/inventory"
+@inject IBaseRepository<InventoryItem> InventoryRepo
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-4" Color="Color.Primary" Style="font-weight: bold;">Envanter & Cihaz Takibi</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+}
+else if (_showForm)
+{
+    <!-- YENİ/DÜZENLE FORM EKRANI -->
+    <MudCard Elevation="3" Class="pa-4 mb-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@(_isEditing ? "Cihazı Düzenle" : "Yeni Cihaz / Ürün Ekle")</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudTextField @bind-Value="_currentItem.Name" Label="Ürün/Cihaz Adı" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudTextField @bind-Value="_currentItem.SerialNumber" Label="Seri Numarası" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+
+            <MudGrid Class="mb-3">
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="_currentItem.Quantity" Label="Adet" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudSelect @bind-Value="_currentItem.Status" Label="Durum" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (TechnicianApp.Core.Models.ItemStatus status in Enum.GetValues(typeof(TechnicianApp.Core.Models.ItemStatus)))
+                        {
+                            <MudSelectItem Value="status">@status</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+
+            <MudTextField @bind-Value="_currentItem.CurrentLocationOrUnit" Label="Bulunduğu Birim / Kişi" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+
+            <MudTextField @bind-Value="_logMessage" Label="İşlem Notu Ekle (Örn: Cihaz onarıldı, teslim edildi)" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" HelperText="Bu not cihazın geçmişine tarih ile birlikte eklenecektir." />
+        </MudCardContent>
+
+        <MudCardActions Class="d-flex justify-end gap-2 mt-2">
+            <MudButton OnClick="CancelForm" Variant="Variant.Text">İptal</MudButton>
+            <MudButton OnClick="SaveItemAsync" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
+        </MudCardActions>
+    </MudCard>
+}
+else
+{
+    <!-- ENVANTER LİSTESİ -->
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudButton OnClick="OpenNewItemForm" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Yeni Ekle</MudButton>
+
+        <!-- Basit bir arama kutusu -->
+        <MudTextField @bind-Value="_searchString" Placeholder="Seri No veya İsim Ara..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Small" Class="mt-0 ml-4" Margin="Margin.Dense" TextChanged="OnSearch" Immediate="true" />
+    </div>
+
+    <MudGrid Class="mt-2">
+        @if (!_filteredItems.Any())
+        {
+            <MudItem xs="12">
+                <MudText Align="Align.Center" Color="Color.Surface">Listelenecek cihaz bulunamadı.</MudText>
+            </MudItem>
+        }
+        else
+        {
+            @foreach (var item in _filteredItems)
+            {
+                <MudItem xs="12" sm="6" md="6">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudText Typo="Typo.h6" Style="font-weight: bold;">@item.Name</MudText>
+                                <MudChip T="string" Color="GetStatusColor(item.Status)" Size="Size.Small">@item.Status</MudChip>
+                            </div>
+
+                            <MudText Typo="Typo.body2"><b>Seri No:</b> @item.SerialNumber</MudText>
+                            <MudText Typo="Typo.body2"><b>Birim:</b> @(string.IsNullOrEmpty(item.CurrentLocationOrUnit) ? "Belirtilmedi" : item.CurrentLocationOrUnit)</MudText>
+                            <MudText Typo="Typo.body2" Class="mb-3"><b>Adet:</b> @item.Quantity</MudText>
+
+                            @if (item.HistoryLogs != null && item.HistoryLogs.Any())
+                            {
+                                <MudExpansionPanels Elevation="0" Dense="true">
+                                    <MudExpansionPanel Text="Cihaz Geçmişi (Loglar)" Style="background-color: #f5f5f5;">
+                                        @foreach (var log in item.HistoryLogs.OrderByDescending(l => l))
+                                        {
+                                            <MudText Typo="Typo.caption" Class="d-block mb-1">
+                                                <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" /> @log
+                                            </MudText>
+                                        }
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+                        </MudCardContent>
+                        <MudCardActions Class="d-flex justify-end">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => EditItem(item))" title="Düzenle / İşlem Yap" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteItemAsync(item.Id))" title="Sil" />
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        }
+    </MudGrid>
+}
+
+@code {
+    private List<InventoryItem> _allItems = new();
+    private List<InventoryItem> _filteredItems = new();
+    private InventoryItem _currentItem = new();
+
+    private bool _isLoading = true;
+    private bool _showForm = false;
+    private bool _isEditing = false;
+
+    private string _userName = "Bilinmeyen Teknisyen";
+    private string _logMessage = string.Empty;
+    private string _searchString = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            _userName = user.FullName;
+            await LoadInventoryAsync();
+        }
+    }
+
+    private async Task LoadInventoryAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _allItems = await InventoryRepo.GetAllAsync("Inventory");
+            _filteredItems = _allItems.OrderBy(i => i.Name).ToList();
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Envanter yüklenirken hata oluştu.", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnSearch(string text)
+    {
+        _searchString = text;
+        if (string.IsNullOrWhiteSpace(_searchString))
+        {
+            _filteredItems = _allItems.OrderBy(i => i.Name).ToList();
+        }
+        else
+        {
+            _filteredItems = _allItems.Where(i =>
+                i.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                i.SerialNumber.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private void OpenNewItemForm()
+    {
+        _currentItem = new InventoryItem();
+        _currentItem.HistoryLogs = new List<string>();
+        _logMessage = string.Empty;
+        _isEditing = false;
+        _showForm = true;
+    }
+
+    private void EditItem(InventoryItem item)
+    {
+        _currentItem = new InventoryItem
+        {
+            Id = item.Id,
+            Name = item.Name,
+            SerialNumber = item.SerialNumber,
+            Status = item.Status,
+            Quantity = item.Quantity,
+            CurrentLocationOrUnit = item.CurrentLocationOrUnit,
+            HistoryLogs = item.HistoryLogs ?? new List<string>()
+        };
+        _logMessage = string.Empty;
+        _isEditing = true;
+        _showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        _showForm = false;
+        _currentItem = new();
+    }
+
+    private async Task SaveItemAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentItem.Name))
+        {
+            Snackbar.Add("Cihaz/Ürün adı boş olamaz.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            // Eğer teknisyen bir işlem notu yazdıysa bunu geçmişe (History) ekle
+            if (!string.IsNullOrWhiteSpace(_logMessage))
+            {
+                if (_currentItem.HistoryLogs == null)
+                    _currentItem.HistoryLogs = new List<string>();
+
+                string timestamp = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                string logEntry = $"[{timestamp}] {_userName}: {_logMessage}";
+
+                _currentItem.HistoryLogs.Add(logEntry);
+            }
+            // Yeni cihaz ekleniyorsa ve not girilmediyse varsayılan log ekle
+            else if (!_isEditing && string.IsNullOrWhiteSpace(_logMessage))
+            {
+                string timestamp = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                _currentItem.HistoryLogs.Add($"[{timestamp}] {_userName} tarafından sisteme kaydedildi.");
+            }
+
+            if (_isEditing)
+            {
+                await InventoryRepo.UpdateAsync("Inventory", _currentItem, _currentItem.Id);
+                Snackbar.Add("Cihaz bilgileri güncellendi.", Severity.Success);
+            }
+            else
+            {
+                await InventoryRepo.AddAsync("Inventory", _currentItem, _currentItem.Id);
+                Snackbar.Add("Yeni cihaz eklendi.", Severity.Success);
+            }
+
+            _showForm = false;
+            await LoadInventoryAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kaydedilirken hata oluştu: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteItemAsync(string id)
+    {
+        try
+        {
+            await InventoryRepo.DeleteAsync("Inventory", id);
+            Snackbar.Add("Kayıt başarıyla silindi.", Severity.Info);
+            await LoadInventoryAsync();
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Silinirken hata oluştu.", Severity.Error);
+        }
+    }
+
+    // Duruma göre çip rengini belirleyen yardımcı metot
+    private Color GetStatusColor(TechnicianApp.Core.Models.ItemStatus status)
+    {
+        return status switch
+        {
+            TechnicianApp.Core.Models.ItemStatus.Saglam => Color.Success,
+            TechnicianApp.Core.Models.ItemStatus.Arizali => Color.Error,
+            TechnicianApp.Core.Models.ItemStatus.Stokta => Color.Info,
+            TechnicianApp.Core.Models.ItemStatus.Birimde => Color.Warning,
+            _ => Color.Default
+        };
+    }
+}

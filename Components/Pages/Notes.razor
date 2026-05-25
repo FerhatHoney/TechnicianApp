@@ -1,0 +1,275 @@
+﻿@page "/notes"
+@using Plugin.LocalNotification
+@inject IBaseRepository<AppNote> NoteRepo
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-4" Color="Color.Primary" Style="font-weight: bold;">Notlar & Hatırlatıcılar</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+}
+else if (_showForm)
+{
+    <!-- YENİ/DÜZENLE FORM EKRANI -->
+    <MudCard Elevation="3" Class="pa-4 mb-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@(_isEditing ? "Notu Düzenle" : "Yeni Not Ekle")</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            <MudTextField @bind-Value="_currentNote.Content" Label="Notunuzu yazın..." Variant="Variant.Outlined" Margin="Margin.Dense" Lines="4" Class="mb-4" />
+            
+            <MudSwitch @bind-Value="_currentNote.IsReminder" Label="Bu bir hatırlatıcı mı?" Color="Color.Secondary" Class="mb-2" />
+            
+            @if (_currentNote.IsReminder)
+            {
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudDatePicker Label="Tarih Seçin" @bind-Date="_reminderDate" DisableToolbar="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudTimePicker Label="Saat Seçin" @bind-Time="_reminderTime" DisableToolbar="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudCardContent>
+        
+        <MudCardActions Class="d-flex justify-end gap-2 mt-2">
+            <MudButton OnClick="CancelForm" Variant="Variant.Text">İptal</MudButton>
+            <MudButton OnClick="SaveNoteAsync" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
+        </MudCardActions>
+    </MudCard>
+}
+else
+{
+    <!-- NOTLAR LİSTESİ -->
+    <MudButton OnClick="OpenNewNoteForm" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-4">Yeni Not Ekle</MudButton>
+
+    <MudGrid Class="mt-2">
+        @if (!_notes.Any())
+        {
+            <MudItem xs="12">
+                <MudText Align="Align.Center" Color="Color.Surface">Henüz bir not veya hatırlatıcı eklemediniz.</MudText>
+            </MudItem>
+        }
+        else
+        {
+            @foreach (var note in _notes)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard Elevation="2" Style="@(note.IsReminder ? "border-left: 4px solid #f50057;" : "border-left: 4px solid #3f51b5;")">
+                        <MudCardContent>
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @note.Date.ToString("dd MMM yyyy, HH:mm")
+                                </MudText>
+                                @if (note.IsReminder)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Color="Color.Secondary" Size="Size.Small" />
+                                }
+                            </div>
+                            <MudText Typo="Typo.body1" Class="mb-2" Style="white-space: pre-wrap;">@note.Content</MudText>
+                            
+                            @if (note.IsReminder && note.ReminderDate.HasValue)
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Alarm">
+                                    @note.ReminderDate.Value.ToString("dd MMM, HH:mm")
+                                </MudChip>
+                            }
+                        </MudCardContent>
+                        <MudCardActions Class="d-flex justify-end">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => EditNote(note))" title="Düzenle" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteNoteAsync(note.Id))" title="Sil" />
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        }
+    </MudGrid>
+}
+
+@code {
+    private List<AppNote> _notes = new();
+    private AppNote _currentNote = new();
+    
+    // MudBlazor Date ve Time picker'ları ayrı değişkenlere (DateTime? ve TimeSpan?) bind edilir.
+    private DateTime? _reminderDate = DateTime.Today;
+    private TimeSpan? _reminderTime = DateTime.Now.TimeOfDay;
+    
+    private bool _isLoading = true;
+    private bool _showForm = false;
+    private bool _isEditing = false;
+    private string _userId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            _userId = user.Id;
+            await LoadNotesAsync();
+            
+            // Bildirim izni kontrolü ve kullanıcıdan izin isteme
+            if (await LocalNotificationCenter.Current.AreNotificationsEnabled() == false)
+            {
+                await LocalNotificationCenter.Current.RequestNotificationPermission();
+            }
+        }
+        else
+        {
+            Snackbar.Add("Oturum bulunamadı. Lütfen tekrar giriş yapın.", Severity.Error);
+        }
+    }
+
+    private async Task LoadNotesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            // Tüm notları çekiyoruz ama SADECE bu teknisyene ait olanları filtreliyoruz
+            var allNotes = await NoteRepo.GetAllAsync("Notes");
+            _notes = allNotes.Where(n => n.TechnicianId == _userId)
+                             .OrderByDescending(n => n.Date)
+                             .ToList();
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Notlar yüklenirken hata oluştu.", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenNewNoteForm()
+    {
+        _currentNote = new AppNote { TechnicianId = _userId };
+        _reminderDate = DateTime.Today;
+        _reminderTime = DateTime.Now.TimeOfDay.Add(TimeSpan.FromHours(1)); // Varsayılan 1 saat sonrası
+        _isEditing = false;
+        _showForm = true;
+    }
+
+    private void EditNote(AppNote note)
+    {
+        _currentNote = new AppNote
+        {
+            Id = note.Id,
+            TechnicianId = note.TechnicianId,
+            Content = note.Content,
+            Date = note.Date,
+            IsReminder = note.IsReminder,
+            ReminderDate = note.ReminderDate
+        };
+
+        // Eğer hatırlatıcıysa tarih ve saat değerlerini parçalayıp picker'lara ver
+        if (note.IsReminder && note.ReminderDate.HasValue)
+        {
+            _reminderDate = note.ReminderDate.Value.Date;
+            _reminderTime = note.ReminderDate.Value.TimeOfDay;
+        }
+
+        _isEditing = true;
+        _showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        _showForm = false;
+        _currentNote = new();
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentNote.Content))
+        {
+            Snackbar.Add("Not içeriği boş olamaz.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            // Hatırlatıcı seçildiyse, DatePicker ve TimePicker değerlerini birleştir
+            if (_currentNote.IsReminder && _reminderDate.HasValue && _reminderTime.HasValue)
+            {
+                _currentNote.ReminderDate = _reminderDate.Value.Date + _reminderTime.Value;
+                
+                // Telefonun yerel bildirimini (Local Notification) zamanla
+                ScheduleLocalNotification(_currentNote);
+            }
+            else
+            {
+                _currentNote.ReminderDate = null;
+                // Hatırlatıcı kaldırıldıysa mevcut bildirimi iptal et
+                LocalNotificationCenter.Current.Cancel(Math.Abs(_currentNote.Id.GetHashCode()));
+            }
+
+            if (_isEditing)
+            {
+                await NoteRepo.UpdateAsync("Notes", _currentNote, _currentNote.Id);
+                Snackbar.Add("Not güncellendi.", Severity.Success);
+            }
+            else
+            {
+                await NoteRepo.AddAsync("Notes", _currentNote, _currentNote.Id);
+                Snackbar.Add("Yeni not eklendi.", Severity.Success);
+            }
+
+            _showForm = false;
+            await LoadNotesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kaydedilirken hata oluştu: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteNoteAsync(string id)
+    {
+        try
+        {
+            // Veritabanından sil
+            await NoteRepo.DeleteAsync("Notes", id);
+            
+            // Eğer planlanmış bir bildirim varsa onu da cihazdan iptal et
+            LocalNotificationCenter.Current.Cancel(Math.Abs(id.GetHashCode()));
+
+            Snackbar.Add("Not başarıyla silindi.", Severity.Info);
+            await LoadNotesAsync();
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Silinirken hata oluştu.", Severity.Error);
+        }
+    }
+
+    // Android/iOS tarafında Yerel Bildirim (Local Notification) oluşturan metot
+    private void ScheduleLocalNotification(AppNote note)
+    {
+        if (!note.ReminderDate.HasValue || note.ReminderDate.Value <= DateTime.Now) 
+            return;
+
+        // Id'yi int formatına çeviriyoruz ki bildirimi silebilelim
+        int notificationId = Math.Abs(note.Id.GetHashCode());
+
+        var request = new NotificationRequest
+        {
+            NotificationId = notificationId,
+            Title = "Hatırlatıcı",
+            Description = note.Content.Length > 50 ? note.Content.Substring(0, 50) + "..." : note.Content,
+            Schedule = new NotificationRequestSchedule
+            {
+                NotifyTime = note.ReminderDate.Value
+            }
+        };
+
+        // MAUI'nin native tarafına bildirimi teslim et
+        LocalNotificationCenter.Current.Show(request);
+    }
+}

@@ -1,0 +1,128 @@
+﻿@page "/admin"
+@inject IBaseRepository<AppUser> UserRepo
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavManager
+
+<MudText Typo="Typo.h5" Class="mb-4" Color="Color.Error" Style="font-weight: bold;">Admin Paneli - Kullanıcı Yönetimi</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Error" Class="mt-4" />
+}
+else
+{
+    <MudTable Items="@_users" Dense="true" Hover="true" Elevation="2">
+        <HeaderContent>
+            <MudTh>Ad Soyad</MudTh>
+            <MudTh>E-Posta</MudTh>
+            <MudTh>Rol</MudTh>
+            <MudTh>Durum</MudTh>
+            <MudTh Style="text-align:right">İşlemler</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="user">
+            <MudTd DataLabel="Ad Soyad">@user.FullName</MudTd>
+            <MudTd DataLabel="E-Posta">@user.Email</MudTd>
+            <MudTd DataLabel="Rol">
+                <MudChip T="string" Color="@(user.Role == "Admin" ? Color.Error : Color.Info)" Size="Size.Small">@user.Role</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Durum">
+                @if (user.IsApproved)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.Check">Onaylı</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Pending">Bekliyor</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="İşlemler" Style="text-align:right">
+
+                @if (!user.IsApproved)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" Class="mr-2" OnClick="@(() => ApproveUser(user))">Onayla</MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" Class="mr-2" OnClick="@(() => DisapproveUser(user))">Askıya Al</MudButton>
+                }
+
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="@(user.Role == "Admin" ? Color.Surface : Color.Error)" Class="mr-2" OnClick="@(() => ToggleRole(user))">
+                    @(user.Role == "Admin" ? "Teknisyen Yap" : "Admin Yap")
+                </MudButton>
+
+                <!-- Silme işlemi sadece Firestore kaydını siler. -->
+                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteUser(user.Id))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<AppUser> _users = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Sayfaya direkt linkle girilmesini engelle
+        var currentUser = await AuthService.GetCurrentUserAsync();
+        if (currentUser == null || currentUser.Role != "Admin")
+        {
+            Snackbar.Add("Bu sayfayı görüntüleme yetkiniz yok!", Severity.Error);
+            NavManager.NavigateTo("/home");
+            return;
+        }
+
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _users = await UserRepo.GetAllAsync("Users");
+            _users = _users.OrderBy(u => u.IsApproved).ThenBy(u => u.FullName).ToList();
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Kullanıcılar yüklenemedi.", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ApproveUser(AppUser user)
+    {
+        user.IsApproved = true;
+        await UserRepo.UpdateAsync("Users", user, user.Id);
+        Snackbar.Add($"{user.FullName} onaylandı.", Severity.Success);
+        await LoadUsersAsync();
+    }
+
+    private async Task DisapproveUser(AppUser user)
+    {
+        user.IsApproved = false;
+        await UserRepo.UpdateAsync("Users", user, user.Id);
+        Snackbar.Add($"{user.FullName} askıya alındı.", Severity.Warning);
+        await LoadUsersAsync();
+    }
+
+    private async Task ToggleRole(AppUser user)
+    {
+        user.Role = user.Role == "Admin" ? "Teknisyen" : "Admin";
+        await UserRepo.UpdateAsync("Users", user, user.Id);
+        Snackbar.Add($"{user.FullName} rolü {user.Role} olarak değiştirildi.", Severity.Info);
+        await LoadUsersAsync();
+    }
+
+    private async Task DeleteUser(string id)
+    {
+        await UserRepo.DeleteAsync("Users", id);
+        Snackbar.Add("Kullanıcı reddedildi / silindi.", Severity.Info);
+        await LoadUsersAsync();
+    }
+}

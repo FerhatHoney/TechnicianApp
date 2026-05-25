@@ -1,0 +1,104 @@
+﻿@page "/"
+@inject IAuthService AuthService
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+
+@if (_isCheckingSession)
+{
+    <!-- Uygulama açıldığında saniyelik kontrol sırasında gösterilecek yükleme ekranı -->
+    <MudContainer Class="d-flex flex-column justify-center align-center" Style="height: 100vh;">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-3" Color="Color.Secondary">Oturum kontrol ediliyor...</MudText>
+    </MudContainer>
+}
+else
+{
+    <!-- MEVCUT GİRİŞ FORMUNUZ BURADA KALACAK -->
+    <MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="mt-10">
+        <MudCard Elevation="4" Class="pa-6">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5" Align="Align.Center" Style="font-weight: bold;" Color="Color.Primary">Giriş Yap</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTextField @bind-Value="_email" Label="E-Posta" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
+                <MudTextField @bind-Value="_password" Label="Şifre" Variant="Variant.Outlined" InputType="InputType.Password" Margin="Margin.Dense" Class="mb-4" />
+
+                @if (_isLoading)
+                {
+                    <div class="d-flex justify-center mt-4">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                    </div>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="HandleLogin" Class="mt-2 py-2">Giriş Yap</MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" FullWidth="true" Class="mt-4" OnClick="@(() => NavManager.NavigateTo("/register"))">Hesabın yok mu? Kayıt Ol</MudButton>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudContainer>
+}
+
+@code {
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private bool _isLoading = false;
+
+    // Yeni eklediğimiz değişken (Formu gizlemek için)
+    private bool _isCheckingSession = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isCheckingSession = true;
+        try
+        {
+            // Firebase'de daha önceden oturum açmış bir kullanıcı var mı kontrol et
+            var currentUser = await AuthService.GetCurrentUserAsync();
+            if (currentUser != null && currentUser.IsApproved)
+            {
+                // Kullanıcı var ve onaylıysa, login formunu hiç göstermeden içeri al
+                NavManager.NavigateTo("/home", forceLoad: true);
+                return;
+            }
+        }
+        catch
+        {
+            // Token süresi dolmuşsa veya hata varsa formu göstermek için devam et
+        }
+        finally
+        {
+            _isCheckingSession = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            Snackbar.Add("E-Posta ve şifre boş bırakılamaz.", Severity.Warning);
+            return;
+        }
+
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var user = await AuthService.LoginWithEmailAsync(_email, _password);
+            Snackbar.Add($"Hoş geldin, {user.FullName}", Severity.Success);
+            NavManager.NavigateTo("/home", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

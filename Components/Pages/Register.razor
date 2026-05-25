@@ -1,0 +1,80 @@
+﻿@page "/register"
+@inject IAuthService AuthService
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center justify-center" Style="height: 80vh;">
+    <MudCard Elevation="3" Class="pa-6" Style="width: 100%; max-width: 400px;">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5" Align="Align.Center" Color="Color.Primary" Style="font-weight: bold;">Yeni Hesap Oluştur</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudTextField @bind-Value="_fullName" Label="Ad Soyad" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
+            <MudTextField @bind-Value="_email" Label="E-Posta" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" InputType="InputType.Email" />
+            <MudTextField @bind-Value="_password" Label="Şifre" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Password" />
+        </MudCardContent>
+
+        <MudCardActions Class="d-flex flex-column gap-3 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" FullWidth="true" OnClick="HandleRegister" Disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Kaydediliyor...</MudText>
+                }
+                else
+                {
+                    <MudText>Kayıt Ol</MudText>
+                }
+            </MudButton>
+
+            <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-2">
+                Zaten hesabınız var mı? <MudLink Href="/">Giriş Yapın</MudLink>
+            </MudText>
+        </MudCardActions>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private string _fullName = string.Empty;
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private bool _isLoading = false;
+
+    private async Task HandleRegister()
+    {
+        if (string.IsNullOrWhiteSpace(_fullName) || string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            Snackbar.Add("Lütfen tüm alanları doldurun.", Severity.Warning);
+            return;
+        }
+
+        if (_password.Length < 6)
+        {
+            Snackbar.Add("Şifre en az 6 karakter olmalıdır.", Severity.Warning);
+            return;
+        }
+
+        _isLoading = true;
+        StateHasChanged(); // UI'ı dönme animasyonuna zorla
+
+        try
+        {
+            var user = await AuthService.RegisterWithEmailAsync(_fullName, _email, _password);
+            Snackbar.Add("Kayıt başarılı! Hesabınız yönetici tarafından onaylandığında giriş yapabilirsiniz.", Severity.Success);
+            NavManager.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            // Eğer bir hata olursa ekranda göster
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged(); // İŞLEM BİTTİĞİNDE UI'I ZORLA YENİLE (Dönmeyi durdur)
+        }
+    }
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+	<!-- Firebase Crashlytics için sahte veya manuel bir Build ID veriyoruz -->
+	<string name="com.crashlytics.android.build_id">1.0</string>
+</resources>
