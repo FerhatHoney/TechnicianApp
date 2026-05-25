@@ -1,8 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System;
 using Plugin.Firebase.Firestore;
 
 namespace TechnicianApp.Core.Models
@@ -21,24 +21,36 @@ namespace TechnicianApp.Core.Models
         [FirestoreProperty("assignedTechnicianId")]
         public string AssignedTechnicianId { get; set; } = string.Empty;
 
-        // Enum'ları Firestore'a int (sayı) olarak kaydetmek daha güvenlidir
+        // Firebase sadece bu sayıyı okuyup/yazacak
         [FirestoreProperty("status")]
         public int StatusInt { get; set; } = (int)TaskStatus.Bekliyor;
 
-        // Uygulama içinde (C# tarafında) kullanacağımız asıl Status enum'u
-        // FirestoreProperty ETMİYORUZ, StatusInt üzerinden okutuyoruz.
-        [FirestoreDocumentId] // Bu alan veritabanına doğrudan yazılmaz
+        // Ekranımız (UI) bu Enum'ı kullanacak (Firebase bunu görmezden gelir)
         public TaskStatus Status
         {
             get => (TaskStatus)StatusInt;
             set => StatusInt = (int)value;
         }
 
+        // Firebase tarihleri DateTimeOffset olarak ister
         [FirestoreProperty("createdAt")]
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTimeOffset CreatedAtOffset { get; set; } = DateTimeOffset.UtcNow;
+
+        // Ekranımız standart DateTime kullanır
+        public DateTime CreatedAt
+        {
+            get => CreatedAtOffset.DateTime;
+            set => CreatedAtOffset = value;
+        }
 
         [FirestoreProperty("completedAt")]
-        public DateTime? CompletedAt { get; set; }
+        public DateTimeOffset? CompletedAtOffset { get; set; }
+
+        public DateTime? CompletedAt
+        {
+            get => CompletedAtOffset?.DateTime;
+            set => CompletedAtOffset = value;
+        }
 
         [FirestoreProperty("actionsTaken")]
         public string ActionsTaken { get; set; } = string.Empty;

@@ -19,12 +19,24 @@ namespace TechnicianApp.Core.Models
         public string Content { get; set; } = string.Empty;
 
         [FirestoreProperty("date")]
-        public DateTime Date { get; set; } = DateTime.UtcNow;
+        public DateTimeOffset DateOffset { get; set; } = DateTimeOffset.UtcNow;
+
+        public DateTime Date
+        {
+            get => DateOffset.DateTime;
+            set => DateOffset = value;
+        }
 
         [FirestoreProperty("isReminder")]
         public bool IsReminder { get; set; } = false;
 
         [FirestoreProperty("reminderDate")]
-        public DateTime? ReminderDate { get; set; }
+        public DateTimeOffset? ReminderDateOffset { get; set; }
+
+        public DateTime? ReminderDate
+        {
+            get => ReminderDateOffset?.DateTime;
+            set => ReminderDateOffset = value;
+        }
     }
 }

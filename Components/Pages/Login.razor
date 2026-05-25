@@ -2,10 +2,10 @@
 @inject IAuthService AuthService
 @inject NavigationManager NavManager
 @inject ISnackbar Snackbar
+@using Microsoft.Maui.Storage
 
 @if (_isCheckingSession)
 {
-    <!-- Uygulama açıldığında saniyelik kontrol sırasında gösterilecek yükleme ekranı -->
     <MudContainer Class="d-flex flex-column justify-center align-center" Style="height: 100vh;">
         <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
         <MudText Typo="Typo.body1" Class="mt-3" Color="Color.Secondary">Oturum kontrol ediliyor...</MudText>
@@ -13,7 +13,6 @@
 }
 else
 {
-    <!-- MEVCUT GİRİŞ FORMUNUZ BURADA KALACAK -->
     <MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="mt-10">
         <MudCard Elevation="4" Class="pa-6">
             <MudCardHeader>
@@ -22,8 +21,10 @@ else
                 </CardHeaderContent>
             </MudCardHeader>
             <MudCardContent>
-                <MudTextField @bind-Value="_email" Label="E-Posta" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
-                <MudTextField @bind-Value="_password" Label="Şifre" Variant="Variant.Outlined" InputType="InputType.Password" Margin="Margin.Dense" Class="mb-4" />
+                <MudTextField @bind-Value="_email" Label="E-Posta" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+                <MudTextField @bind-Value="_password" Label="Şifre" Variant="Variant.Outlined" InputType="InputType.Password" Margin="Margin.Dense" Class="mb-2" />
+
+                <MudCheckBox @bind-Value="_rememberMe" Label="Giriş Bilgilerimi Kaydet" Color="Color.Primary" Class="mb-4" />
 
                 @if (_isLoading)
                 {
@@ -44,29 +45,32 @@ else
 @code {
     private string _email = string.Empty;
     private string _password = string.Empty;
+    private bool _rememberMe = false;
     private bool _isLoading = false;
-
-    // Yeni eklediğimiz değişken (Formu gizlemek için)
     private bool _isCheckingSession = true;
 
     protected override async Task OnInitializedAsync()
     {
         _isCheckingSession = true;
+
+        // Cihaza kaydedilmiş şifre var mı kontrol et
+        _email = Preferences.Default.Get("SavedEmail", "");
+        _password = Preferences.Default.Get("SavedPassword", "");
+        if (!string.IsNullOrWhiteSpace(_email))
+        {
+            _rememberMe = true;
+        }
+
         try
         {
-            // Firebase'de daha önceden oturum açmış bir kullanıcı var mı kontrol et
             var currentUser = await AuthService.GetCurrentUserAsync();
             if (currentUser != null && currentUser.IsApproved)
             {
-                // Kullanıcı var ve onaylıysa, login formunu hiç göstermeden içeri al
                 NavManager.NavigateTo("/home", forceLoad: true);
                 return;
             }
         }
-        catch
-        {
-            // Token süresi dolmuşsa veya hata varsa formu göstermek için devam et
-        }
+        catch { }
         finally
         {
             _isCheckingSession = false;
@@ -88,6 +92,19 @@ else
         try
         {
             var user = await AuthService.LoginWithEmailAsync(_email, _password);
+
+            // Beni Hatırla Seçiliyse Şifreyi Telefona Kaydet
+            if (_rememberMe)
+            {
+                Preferences.Default.Set("SavedEmail", _email);
+                Preferences.Default.Set("SavedPassword", _password);
+            }
+            else
+            {
+                Preferences.Default.Remove("SavedEmail");
+                Preferences.Default.Remove("SavedPassword");
+            }
+
             Snackbar.Add($"Hoş geldin, {user.FullName}", Severity.Success);
             NavManager.NavigateTo("/home", forceLoad: true);
         }

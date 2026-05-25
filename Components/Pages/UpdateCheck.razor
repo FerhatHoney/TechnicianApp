@@ -1,0 +1,109 @@
+﻿@page "/update"
+@inject IBaseRepository<TechnicianApp.Core.Models.AppVersionInfo> VersionRepo
+@inject ISnackbar Snackbar
+@using Microsoft.Maui.ApplicationModel
+
+<MudText Typo="Typo.h5" Class="mb-4" Color="Color.Primary" Style="font-weight: bold;">Sürüm ve Güncelleme</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+}
+else
+{
+    <MudCard Elevation="3" Class="pa-6" Style="border-radius: 12px;">
+        <MudCardContent>
+            <div class="d-flex align-center justify-space-between mb-4">
+                <MudText Typo="Typo.h6">Cihazdaki Sürüm:</MudText>
+                <MudChip T="string" Color="Color.Dark" Size="Size.Large">v@_currentVersion</MudChip>
+            </div>
+
+            <MudDivider Class="mb-6" />
+
+            @if (_isUpdateAvailable && _serverVersion != null)
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="mb-4" Style="border-radius: 8px;">
+                    Yeni bir sürüm bulundu: <b style="font-size:1.1em">v@_serverVersion.VersionCode</b>
+                </MudAlert>
+
+                <MudText Typo="Typo.subtitle1" Style="font-weight: bold;" Color="Color.Primary" Class="mb-1">Yenilikler ve Düzeltmeler:</MudText>
+                <MudPaper Elevation="0" Class="pa-4 mb-6" Style="background-color: #f5f5f5; border-radius: 8px;">
+                    <MudText Typo="Typo.body2" Style="white-space: pre-wrap;">@_serverVersion.ReleaseNotes</MudText>
+                </MudPaper>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download" FullWidth="true" Size="Size.Large" OnClick="DownloadUpdate">
+                    Hemen İndir ve Kur
+                </MudButton>
+                <MudText Typo="Typo.caption" Class="d-block mt-2" Align="Align.Center" Color="Color.Secondary">
+                    İndirilen APK dosyasını açarak üzerine kurabilirsiniz. Bilgileriniz kaybolmaz.
+                </MudText>
+                <MudText Typo="Typo.caption">Bu uygulama Ferhat Bal tarafından geliştirilmiştir.</MudText>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mb-4" Style="border-radius: 8px;">
+                    Uygulamanız güncel. En son sürümü (v@_currentVersion) kullanıyorsunuz.
+                </MudAlert>
+
+                @if (_serverVersion != null && !string.IsNullOrEmpty(_serverVersion.ReleaseNotes))
+                {
+                    <MudText Typo="Typo.subtitle2" Style="font-weight: bold;" Class="mb-1 mt-4">Son Güncelleme Notları:</MudText>
+                    <MudText Typo="Typo.body2" Style="white-space: pre-wrap; color: #666;">@_serverVersion.ReleaseNotes</MudText>
+                }
+            }
+        </MudCardContent>
+    </MudCard>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string _currentVersion = AppInfo.Current.VersionString; // MAUI'den mevcut sürümü çeker (Örn: 1.0)
+    private bool _isUpdateAvailable = false;
+    private TechnicianApp.Core.Models.AppVersionInfo _serverVersion = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var version = await VersionRepo.GetByIdAsync("Settings", "CurrentVersion");
+
+            if (version != null)
+            {
+                _serverVersion = version;
+
+                // Sürüm numaralarını kıyasla (Örn: 1.1 > 1.0)
+                if (Version.TryParse(_serverVersion.VersionCode, out Version serverV) &&
+                    Version.TryParse(_currentVersion, out Version currentV))
+                {
+                    if (serverV > currentV) _isUpdateAvailable = true;
+                }
+                else
+                {
+                    // Sayısal çeviri başarısız olursa düz metin kıyaslaması yap
+                    if (_serverVersion.VersionCode != _currentVersion) _isUpdateAvailable = true;
+                }
+            }
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Güncelleme sunucusuna bağlanılamadı.", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task DownloadUpdate()
+    {
+        if (!string.IsNullOrEmpty(_serverVersion?.DownloadUrl))
+        {
+            // İndirme linkini cihazın tarayıcısında açar (Android APK indirmeyi başlatır)
+            await Launcher.Default.OpenAsync(new Uri(_serverVersion.DownloadUrl));
+        }
+        else
+        {
+            Snackbar.Add("İndirme linki sunucuda bulunamadı.", Severity.Warning);
+        }
+    }
+}

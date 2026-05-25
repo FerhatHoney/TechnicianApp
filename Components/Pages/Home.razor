@@ -1,13 +1,81 @@
 ﻿@page "/home"
+@inject IBaseRepository<TechnicianApp.Core.Models.AppTask> TaskRepo
+@inject IBaseRepository<TechnicianApp.Core.Models.AppNote> NoteRepo
+@inject IBaseRepository<TechnicianApp.Core.Models.InventoryItem> InventoryRepo
 
-<MudText Typo="Typo.h4" GutterBottom="true">Hoş Geldiniz</MudText>
-<MudText Class="mb-4">MudBlazor başarıyla kuruldu ve UI katmanı hazır!</MudText>
+<MudText Typo="Typo.h5" Class="mb-4" Color="Color.Primary" Style="font-weight: bold;">Sistem Özeti (Dashboard)</MudText>
 
-<MudCard>
-    <MudCardContent>
-        <MudText>Görevler, Notlar ve Envanter modülleri buraya eklenecektir.</MudText>
-    </MudCardContent>
-    <MudCardActions>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary">Hadi Başlayalım</MudButton>
-    </MudCardActions>
-</MudCard>
+@if (_isLoading)
+{
+    <div class="d-flex justify-center align-center mt-10">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Class="pa-4 d-flex flex-column align-center justify-center" Style="height:140px; background-color: #e3f2fd; border-radius: 12px;" Elevation="3">
+                <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Large" Color="Color.Primary" Class="mb-2" />
+                <MudText Typo="Typo.h4" Style="font-weight:bold; color: #1565c0;">@_activeTasksCount</MudText>
+                <MudText Typo="Typo.body2" Style="color: #1565c0;">Devam Eden Görevler</MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Class="pa-4 d-flex flex-column align-center justify-center" Style="height:140px; background-color: #fff3e0; border-radius: 12px;" Elevation="3">
+                <MudIcon Icon="@Icons.Material.Filled.StickyNote2" Size="Size.Large" Color="Color.Warning" Class="mb-2" />
+                <MudText Typo="Typo.h4" Style="font-weight:bold; color: #e65100;">@_totalNotesCount</MudText>
+                <MudText Typo="Typo.body2" Style="color: #e65100;">Sistemdeki Notlar</MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="12" md="4">
+            <MudPaper Class="pa-4 d-flex flex-column align-center justify-center" Style="height:140px; background-color: #ffebee; border-radius: 12px;" Elevation="3">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Large" Color="Color.Error" Class="mb-2" />
+                <MudText Typo="Typo.h4" Style="font-weight:bold; color: #c62828;">@_defectiveItemsCount</MudText>
+                <MudText Typo="Typo.body2" Style="color: #c62828;">Arızalı Cihaz Sayısı</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudCard Class="mt-6 pa-4" Elevation="2" Style="border-radius: 12px;">
+        <MudText Typo="Typo.h6" Class="mb-2">Hızlı İşlemler</MudText>
+        <MudDivider Class="mb-4" />
+        <div class="d-flex gap-4 flex-wrap">
+            <MudButton Href="/tasks" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddTask">Görevlere Git</MudButton>
+            <MudButton Href="/inventory" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Inventory">Envanteri Aç</MudButton>
+            <MudButton Href="/notes" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.EditNote">Not Ekle</MudButton>
+        </div>
+    </MudCard>
+}
+
+@code {
+    private bool _isLoading = true;
+    private int _activeTasksCount = 0;
+    private int _totalNotesCount = 0;
+    private int _defectiveItemsCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            // İstatistikleri Firebase'den Çek
+            var tasks = await TaskRepo.GetAllAsync("Tasks");
+            _activeTasksCount = tasks.Count(t => t.StatusInt != (int)TechnicianApp.Core.Models.TaskStatus.Tamamlandi);
+
+            var notes = await NoteRepo.GetAllAsync("Notes");
+            _totalNotesCount = notes.Count;
+
+            var inventory = await InventoryRepo.GetAllAsync("Inventory");
+            _defectiveItemsCount = inventory.Count(i => i.StatusInt == (int)TechnicianApp.Core.Models.ItemStatus.Arizali);
+        }
+        catch { }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

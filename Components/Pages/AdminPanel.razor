@@ -3,6 +3,7 @@
 @inject IAuthService AuthService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavManager
+@inject IBaseRepository<TechnicianApp.Core.Models.AppVersionInfo> VersionRepo
 
 <MudText Typo="Typo.h5" Class="mb-4" Color="Color.Error" Style="font-weight: bold;">Admin Paneli - Kullanıcı Yönetimi</MudText>
 
@@ -51,16 +52,31 @@ else
                     @(user.Role == "Admin" ? "Teknisyen Yap" : "Admin Yap")
                 </MudButton>
 
-                <!-- Silme işlemi sadece Firestore kaydını siler. -->
                 <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteUser(user.Id))" />
             </MudTd>
         </RowTemplate>
     </MudTable>
+
+    <MudDivider Class="my-8" />
+
+    <MudText Typo="Typo.h5" Class="mb-4" Color="Color.Primary" Style="font-weight: bold;">Uygulama Sürüm & Güncelleme Yönetimi</MudText>
+
+    <MudCard Elevation="2" Class="pa-4 mb-6" Style="border-radius: 12px; background-color: #f3f6f9;">
+        <MudCardContent>
+            <MudTextField @bind-Value="_appVersion.VersionCode" Label="Yeni Sürüm Numarası (Örn: 1.1)" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_appVersion.DownloadUrl" Label="APK İndirme Linki (Direkt Link veya Drive/Yandex)" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_appVersion.ReleaseNotes" Label="Kullanıcılara Gösterilecek Yenilikler" Variant="Variant.Outlined" Lines="4" Class="mb-3" />
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" OnClick="SaveVersion">Sürümü Yayınla</MudButton>
+            </div>
+        </MudCardContent>
+    </MudCard>
 }
 
 @code {
     private List<AppUser> _users = new();
     private bool _isLoading = true;
+    private TechnicianApp.Core.Models.AppVersionInfo _appVersion = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,6 +90,10 @@ else
         }
 
         await LoadUsersAsync();
+
+        // DOĞRU YER: Veritabanından sürüm çekme işlemi burada (Metot içinde) yapılır
+        var v = await VersionRepo.GetByIdAsync("Settings", "CurrentVersion");
+        if (v != null) _appVersion = v;
     }
 
     private async Task LoadUsersAsync()
@@ -92,6 +112,20 @@ else
         {
             _isLoading = false;
             StateHasChanged();
+        }
+    }
+
+    private async Task SaveVersion()
+    {
+        try
+        {
+            _appVersion.UpdatedAtOffset = DateTimeOffset.UtcNow;
+            await VersionRepo.AddAsync("Settings", _appVersion, "CurrentVersion");
+            Snackbar.Add("Yeni sürüm tüm kullanıcılara yayınlandı!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Sürüm yayınlanırken hata oluştu: {ex.Message}", Severity.Error);
         }
     }
 

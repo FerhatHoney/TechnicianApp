@@ -15,22 +15,27 @@ namespace TechnicianApp.Infrastructure.Repositories
             var items = new List<T>();
             try
             {
+                // ÇÖZÜM 1: <T> Geri eklendi
                 var querySnapshot = await CrossFirebaseFirestore.Current.GetCollection(collectionPath).GetDocumentsAsync<T>();
 
                 foreach (var document in querySnapshot.Documents)
                 {
-                    var item = document.Data as T;
-
-                    if (item != null)
+                    try
                     {
-                        // DÜZELTME: document.Id yerine document.Reference.Id kullanıyoruz
-                        var idProp = typeof(T).GetProperty("Id");
-                        if (idProp != null && string.IsNullOrEmpty((string)idProp.GetValue(item) as string))
+                        var item = document.Data;
+                        if (item != null)
                         {
-                            idProp.SetValue(item, document.Reference.Id);
+                            var idProp = typeof(T).GetProperty("Id");
+                            if (idProp != null && string.IsNullOrEmpty(idProp.GetValue(item) as string))
+                            {
+                                idProp.SetValue(item, document.Reference.Id);
+                            }
+                            items.Add(item);
                         }
-
-                        items.Add(item);
+                    }
+                    catch
+                    {
+                        continue;
                     }
                 }
             }
@@ -41,41 +46,32 @@ namespace TechnicianApp.Infrastructure.Repositories
             return items;
         }
 
-        public async Task<T?> GetByIdAsync(string collectionPath, string id)
+        public async Task<T> GetByIdAsync(string collectionPath, string id)
         {
             try
             {
+                // ÇÖZÜM 2: <T> Geri eklendi
                 var document = await CrossFirebaseFirestore.Current.GetCollection(collectionPath).GetDocument(id).GetDocumentSnapshotAsync<T>();
-
-                // DÜZELTME: document.Exists yerine document.Data != null kontrolü yapıyoruz
                 if (document != null && document.Data != null)
                 {
                     var item = document.Data;
                     var idProp = typeof(T).GetProperty("Id");
-
-                    // DÜZELTME: document.Id yerine document.Reference.Id kullanıyoruz
                     if (idProp != null) idProp.SetValue(item, document.Reference.Id);
-
                     return item;
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"GetByIdAsync Hatası ({collectionPath}): {ex.Message}");
-            }
+            catch { }
             return null;
         }
 
-        public async Task AddAsync(string collectionPath, T entity, string? id = null)
+        public async Task AddAsync(string collectionPath, T entity, string id = null)
         {
             if (string.IsNullOrEmpty(id))
             {
-                // Rastgele ID oluştur (Firestore Auto-ID)
                 await CrossFirebaseFirestore.Current.GetCollection(collectionPath).AddDocumentAsync(entity);
             }
             else
             {
-                // Belirli ID ile ekle
                 await CrossFirebaseFirestore.Current.GetCollection(collectionPath).GetDocument(id).SetDataAsync(entity);
             }
         }

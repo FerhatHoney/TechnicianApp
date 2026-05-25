@@ -21,7 +21,6 @@ namespace TechnicianApp.Core.Models
         [FirestoreProperty("status")]
         public int StatusInt { get; set; } = (int)ItemStatus.Saglam;
 
-        [FirestoreDocumentId]
         public ItemStatus Status
         {
             get => (ItemStatus)StatusInt;
